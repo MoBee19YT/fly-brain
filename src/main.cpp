@@ -13,9 +13,7 @@
 #include <sstream>
 #include <unordered_set>
 
-#ifdef GEODE_IS_WINDOWS
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
+#ifdef _WIN32
     using sock_t = SOCKET;
     static constexpr sock_t BAD_SOCK = INVALID_SOCKET;
     static void closeSock(sock_t s) { closesocket(s); }
@@ -42,7 +40,7 @@ public:
 
     bool connect(int port) {
         disconnect();
-#ifdef GEODE_IS_WINDOWS
+#ifdef _WIN32
         static bool wsa = false;
         if (!wsa) { WSADATA d; WSAStartup(MAKEWORD(2, 2), &d); wsa = true; }
 #endif
@@ -51,14 +49,14 @@ public:
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
         addr.sin_port = htons(static_cast<uint16_t>(port));
-        inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
         if (::connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
             closeSock(s);
             return false;
         }
         int one = 1;
         setsockopt(s, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&one), sizeof(one));
-#ifdef GEODE_IS_WINDOWS
+#ifdef _WIN32
         DWORD tv = 200;
         setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
 #else
