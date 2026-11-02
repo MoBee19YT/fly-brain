@@ -164,7 +164,7 @@ static void tryConnect(GJBaseGameLayer* layer) {
     }
 }
 
-static void release(GJBaseGameLayer* layer) {
+static void releaseButton(GJBaseGameLayer* layer) {
     if (g_holding) {
         layer->handleButton(false, 1, true);
         g_holding = false;
@@ -190,7 +190,7 @@ class $modify(FlyPlayLayer, PlayLayer) {
     }
 
     void onQuit() {
-        release(this);
+        releaseButton(this);
         g_link.send("Q\n");
         g_link.disconnect();
         PlayLayer::onQuit();
