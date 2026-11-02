@@ -1,0 +1,28 @@
+{
+	"geode": "5.11.2",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081"
+	},
+	"id": "tomas.fly-brain",
+	"name": "Fly Brain",
+	"version": "v0.1.0",
+	"developer": "tomas",
+	"description": "Lets a fruit-fly connectome (FlyWire) play the level. Needs fly_server.py running on your PC.",
+	"settings": {
+		"enabled": {
+			"type": "bool",
+			"name": "Let the fly play",
+			"description": "When on, the fly brain controls the jump button whenever fly_server.py is running.",
+			"default": true
+		},
+		"port": {
+			"type": "int",
+			"name": "Brain server port",
+			"default": 5577,
+			"min": 1024,
+			"max": 65535
+		}
+	}
+}
