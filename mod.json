@@ -7,7 +7,7 @@
 	},
 	"id": "tomas.fly-brain",
 	"name": "Fly Brain",
-	"version": "v0.1.0",
+	"version": "v0.2.0",
 	"developer": "tomas",
 	"description": "Lets a fruit-fly connectome (FlyWire) play the level. Needs fly_server.py running on your PC.",
 	"settings": {
@@ -23,6 +23,19 @@
 			"default": 5577,
 			"min": 1024,
 			"max": 65535
+		},
+		"speed": {
+			"type": "float",
+			"name": "Training speed",
+			"description": "Runs the game faster while the fly is playing, so it gets more attempts per hour (1 = normal).",
+			"default": 2.0,
+			"min": 1.0,
+			"max": 4.0,
+			"control": {
+				"slider": true,
+				"arrows": true,
+				"slider-step": 0.5
+			}
 		}
 	}
 }

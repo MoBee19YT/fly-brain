@@ -107,6 +107,12 @@ static bool g_holding = false;
 static double g_time = 0.0;
 
 static bool enabled() { return Mod::get()->getSettingValue<bool>("enabled"); }
+static double trainingSpeed() { return Mod::get()->getSettingValue<double>("speed"); }
+
+static void applySpeed(bool on) {
+    float s = (on && enabled() && g_link.connected()) ? static_cast<float>(trainingSpeed()) : 1.0f;
+    CCDirector::get()->getScheduler()->setTimeScale(s);
+}
 static int port() { return static_cast<int>(Mod::get()->getSettingValue<int64_t>("port")); }
 
 static int playerMode(PlayerObject* p) {
@@ -153,10 +159,14 @@ static void sendLevel(GJBaseGameLayer* layer) {
     log::info("Fly brain: sent level with {} objects", count);
 }
 
-static void tryConnect(GJBaseGameLayer* layer) {
+static void tryConnect(PlayLayer* layer) {
     if (!enabled()) return;
     if (g_link.connect(port())) {
-        g_link.send("H 1\n");
+        g_link.send("H 2\n");
+        if (auto lvl = layer->m_level) {
+            std::string name = lvl->m_levelName;
+            g_link.send(fmt::format("I {} {}\n", lvl->m_levelID.value(), name));
+        }
         sendLevel(layer);
         log::info("Fly brain connected on port {}", port());
     } else {
@@ -178,19 +188,35 @@ class $modify(FlyPlayLayer, PlayLayer) {
         g_holding = false;
         g_time = 0.0;
         tryConnect(this);
+        applySpeed(true);
         return true;
+    }
+
+    void destroyPlayer(PlayerObject* player, GameObject* object) {
+        // GD "kills" the player with a hidden anticheat spike at level start - ignore that one
+        bool real = player == m_player1 && object != m_anticheatSpike && player && !player->m_isDead;
+        PlayLayer::destroyPlayer(player, object);
+        if (real && player->m_isDead && g_link.connected()) {
+            g_link.send(fmt::format("D {:.2f}\n", player->getPositionX()));
+        }
+    }
+
+    void levelComplete() {
+        if (g_link.connected()) g_link.send("W\n");
+        PlayLayer::levelComplete();
     }
 
     void resetLevel() {
         PlayLayer::resetLevel();
         g_holding = false;
         g_time = 0.0;
-        if (!g_link.connected()) tryConnect(this);
+        if (!g_link.connected()) { tryConnect(this); applySpeed(true); }
         g_link.send("R\n");
     }
 
     void onQuit() {
         releaseButton(this);
+        CCDirector::get()->getScheduler()->setTimeScale(1.0f);
         g_link.send("Q\n");
         g_link.disconnect();
         PlayLayer::onQuit();
