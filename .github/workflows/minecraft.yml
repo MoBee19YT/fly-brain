@@ -23,17 +23,6 @@ jobs:
           distribution: 'microsoft'
       - name: Build
         run: chmod +x ./gradlew && ./gradlew build --stacktrace
-      - name: Inspect Minecraft API (debug)
-        if: always()
-        run: |
-          JAR=$(find ~/.gradle/caches -name "*.jar" | grep -i -E "minecraft-(merged|common|clientOnly)|minecraft-26" | grep -v sources | head -5)
-          echo "$JAR"
-          for J in $JAR; do
-            unzip -l "$J" | grep -i -E "entity/EntityType|EntityTypes|animal/.*Bee\.class" | head -10
-            javap -classpath "$J" net.minecraft.world.entity.EntityType 2>/dev/null | grep -i -E " BEE|static .*create|spawn" | head -10
-            javap -classpath "$J" net.minecraft.world.entity.EntityTypes 2>/dev/null | grep -i " BEE" | head -5
-            javap -classpath "$J" net.minecraft.world.entity.Entity 2>/dev/null | grep -i -E "invulnerab|setNoGravity|move\(" | head -10
-          done
       - uses: actions/upload-artifact@v4
         with:
           name: Fly Bee mod

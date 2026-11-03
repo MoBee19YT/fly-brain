@@ -13,7 +13,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.level.ClipContext;
@@ -77,17 +77,15 @@ public class FlyBee implements ModInitializer {
         CommandSourceStack src = ctx.getSource();
         ServerLevel level = src.getLevel();
         if (bee != null && bee.isAlive()) bee.discard();
-        Mob b = EntityType.BEE.create(level, EntitySpawnReason.COMMAND);
-        if (b == null) return 0;
         Vec3 p = src.getPosition().add(0, 1.5, 0);
+        Mob b = EntityTypes.BEE.spawn(level, BlockPos.containing(p), EntitySpawnReason.COMMAND);
+        if (b == null) return 0;
         b.setPos(p.x, p.y, p.z);
         b.setNoAi(true);            // the fly brain flies it, not Minecraft's bee AI
         b.setNoGravity(true);
-        b.setInvulnerable(true);
         b.setPersistenceRequired();
         b.setCustomName(Component.literal("Fly"));
         b.setCustomNameVisible(true);
-        level.addFreshEntity(b);
         bee = b; beeLevel = level; home = p; flowersTotal = 0;
         src.sendSuccess(() -> Component.literal("The fly brain now lives in this bee. "
             + (connected ? "Brain connected." : "Start bee_server.py on your PC so it can think!")), false);
