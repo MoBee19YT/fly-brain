@@ -183,8 +183,14 @@ static void releaseButton(GJBaseGameLayer* layer) {
 
 // ------------------------------------------------------------------ hooks
 class $modify(FlyPlayLayer, PlayLayer) {
+#if GEODE_COMP_GD_VERSION >= 22090
+    // GD 2.209+ (Geode v6): init lost its useReplay argument
+    bool init(GJGameLevel* level, bool dontCreateObjects) {
+        if (!PlayLayer::init(level, dontCreateObjects)) return false;
+#else
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
         if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
+#endif
         g_holding = false;
         g_time = 0.0;
         tryConnect(this);
