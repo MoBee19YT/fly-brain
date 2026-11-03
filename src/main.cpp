@@ -121,6 +121,7 @@ public:
 static BrainLink g_link;
 static bool g_holding = false;
 static double g_time = 0.0;
+static double g_lastAsk = -1.0;   // game time of the last question to the brain
 
 static bool enabled() { return Mod::get()->getSettingValue<bool>("enabled"); }
 static double trainingSpeed() { return Mod::get()->getSettingValue<double>("speed"); }
@@ -218,6 +219,7 @@ class $modify(FlyPlayLayer, PlayLayer) {
 #endif
         g_holding = false;
         g_time = 0.0;
+        g_lastAsk = -1.0;
         tryConnect(this);
         applySpeed(true);
         return true;
@@ -241,6 +243,7 @@ class $modify(FlyPlayLayer, PlayLayer) {
         PlayLayer::resetLevel();
         g_holding = false;
         g_time = 0.0;
+        g_lastAsk = -1.0;
         if (!g_link.connected()) { tryConnect(this); applySpeed(true); }
         g_link.send("R\n");
     }
@@ -261,6 +264,10 @@ class $modify(FlyGameLayer, GJBaseGameLayer) {
             auto p = m_player1;
             if (p && !p->m_isDead) {
                 g_time += dt;
+            }
+            // the brain decides 60 times per game-second; in between, keep the last decision
+            if (p && !p->m_isDead && (g_lastAsk < 0 || g_time - g_lastAsk >= 1.0 / 60.0 - 1e-6)) {
+                g_lastAsk = g_time;
                 auto pos = p->getPosition();
                 std::ostringstream ss;
                 ss.precision(4);
