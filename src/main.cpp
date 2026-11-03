@@ -56,6 +56,10 @@ public:
         }
         int one = 1;
         setsockopt(s, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&one), sizeof(one));
+#ifdef __APPLE__
+        // without this, macOS kills the whole game (SIGPIPE) if the brain server closes mid-level
+        setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
 #ifdef _WIN32
         DWORD tv = 200;
         setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
