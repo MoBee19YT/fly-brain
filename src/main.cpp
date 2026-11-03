@@ -60,17 +60,24 @@ public:
         // without this, macOS kills the whole game (SIGPIPE) if the brain server closes mid-level
         setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 #endif
-#ifdef _WIN32
-        DWORD tv = 200;
-        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
-#else
-        timeval tv{0, 200000};
-        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-#endif
         m_sock = s;
+        setTimeout(1500);
         m_buf.clear();
         return true;
     }
+
+    void setTimeout(int ms) {
+        if (!connected()) return;
+#ifdef _WIN32
+        DWORD tv = static_cast<DWORD>(ms);
+        setsockopt(m_sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
+#else
+        timeval tv{ms / 1000, (ms % 1000) * 1000};
+        setsockopt(m_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#endif
+    }
+
+    std::string lastError;
 
     void disconnect() {
         if (m_sock != BAD_SOCK) closeSock(m_sock);
@@ -82,7 +89,7 @@ public:
         size_t off = 0;
         while (off < msg.size()) {
             int n = ::send(m_sock, msg.data() + off, static_cast<int>(msg.size() - off), 0);
-            if (n <= 0) { disconnect(); return false; }
+            if (n <= 0) { log::warn("Fly brain: send failed - disconnecting"); disconnect(); return false; }
             off += static_cast<size_t>(n);
         }
         return true;
@@ -100,7 +107,12 @@ public:
             }
             char tmp[256];
             int n = ::recv(m_sock, tmp, sizeof(tmp), 0);
-            if (n <= 0) { disconnect(); return false; }
+            if (n <= 0) {
+                lastError = n == 0 ? "server closed the connection" : "no answer from the brain in time";
+                log::warn("Fly brain: {} - disconnecting", lastError);
+                disconnect();
+                return false;
+            }
             m_buf.append(tmp, static_cast<size_t>(n));
         }
     }
@@ -172,6 +184,15 @@ static void tryConnect(PlayLayer* layer) {
             g_link.send(fmt::format("I {} {}\n", lvl->m_levelID.value(), name));
         }
         sendLevel(layer);
+        // wait (up to 10 s) until the brain has the level and is ready
+        g_link.setTimeout(10000);
+        std::string ack;
+        if (!g_link.readLine(ack) || ack != "K") {
+            log::warn("Fly brain: server did not confirm the level ('{}')", ack);
+            g_link.disconnect();
+            return;
+        }
+        g_link.setTimeout(1500);
         log::info("Fly brain connected on port {}", port());
     } else {
         log::info("Fly brain server not running on port {} - playing normally", port());
