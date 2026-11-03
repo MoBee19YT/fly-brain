@@ -1,0 +1,37 @@
+name: Build Fly Bee (Minecraft)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "minecraft/**"
+      - ".github/workflows/minecraft.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: minecraft
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: Build
+        run: chmod +x ./gradlew && ./gradlew build --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fly Bee mod
+          path: minecraft/build/libs/
+      - name: Publish as a direct download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mc-26.3
+          name: Fly Bee mod for Minecraft 26.3 (Fabric)
+          body: "Download flybee-0.1.0.jar and add it to a Fabric 26.3 profile in the Modrinth App, together with Fabric API."
+          files: minecraft/build/libs/flybee-0.1.0.jar
+          make_latest: false
