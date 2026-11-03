@@ -205,7 +205,7 @@ static void sendLevel(GJBaseGameLayer* layer) {
 static void tryConnect(PlayLayer* layer) {
     if (!enabled()) return;
     if (g_link.connect(port())) {
-        g_link.send("H 2\n");
+        g_link.send("H 3\n");
         if (auto lvl = layer->m_level) {
             std::string name = lvl->m_levelName;
             g_link.send(fmt::format("I {} {}\n", lvl->m_levelID.value(), name));
