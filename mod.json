@@ -7,7 +7,7 @@
 	},
 	"id": "tomas.fly-brain",
 	"name": "Fly Brain",
-	"version": "v0.3.1",
+	"version": "v0.4.0",
 	"developer": "tomas",
 	"description": "Lets a fruit-fly connectome (FlyWire) play the level. Needs fly_server.py running on your PC.",
 	"settings": {

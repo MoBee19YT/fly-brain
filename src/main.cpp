@@ -12,6 +12,7 @@
 #include <string>
 #include <sstream>
 #include <unordered_set>
+#include <chrono>
 
 #ifdef _WIN32
     using sock_t = SOCKET;
@@ -95,6 +96,27 @@ public:
         return true;
     }
 
+    // Returns true if a full line is available right now (never waits). Used in async mode.
+    bool pollLine(std::string& out) {
+        if (!connected()) return false;
+        while (true) {
+            auto pos = m_buf.find('\n');
+            if (pos != std::string::npos) {
+                out = m_buf.substr(0, pos);
+                m_buf.erase(0, pos + 1);
+                return true;
+            }
+            fd_set rd; FD_ZERO(&rd); FD_SET(m_sock, &rd);
+            timeval tv{0, 0};
+            int ready = select(static_cast<int>(m_sock) + 1, &rd, nullptr, nullptr, &tv);
+            if (ready <= 0) return false;
+            char tmp[256];
+            int n = ::recv(m_sock, tmp, sizeof(tmp), 0);
+            if (n <= 0) { lastError = "server closed the connection"; disconnect(); return false; }
+            m_buf.append(tmp, static_cast<size_t>(n));
+        }
+    }
+
     // Reads one line. Returns false on timeout / error.
     bool readLine(std::string& out) {
         if (!connected()) return false;
@@ -122,6 +144,9 @@ static BrainLink g_link;
 static bool g_holding = false;
 static double g_time = 0.0;
 static double g_lastAsk = -1.0;   // game time of the last question to the brain
+static bool g_async = false;      // brain too slow to wait for (real fly mode): game never waits
+static bool g_inFlight = false;   // async: a question is waiting for its answer
+static double g_askedAt = 0.0;    // async: real time the pending question was sent
 
 static bool enabled() { return Mod::get()->getSettingValue<bool>("enabled"); }
 static double trainingSpeed() { return Mod::get()->getSettingValue<double>("speed"); }
@@ -188,13 +213,15 @@ static void tryConnect(PlayLayer* layer) {
         // wait (up to 10 s) until the brain has the level and is ready
         g_link.setTimeout(10000);
         std::string ack;
-        if (!g_link.readLine(ack) || ack != "K") {
+        if (!g_link.readLine(ack) || ack.empty() || ack[0] != 'K') {
             log::warn("Fly brain: server did not confirm the level ('{}')", ack);
             g_link.disconnect();
             return;
         }
         g_link.setTimeout(1500);
-        log::info("Fly brain connected on port {}", port());
+        g_async = ack.find("async") != std::string::npos;
+        g_inFlight = false;
+        log::info("Fly brain connected on port {} ({} mode)", port(), g_async ? "async" : "sync");
     } else {
         log::info("Fly brain server not running on port {} - playing normally", port());
     }
@@ -220,6 +247,7 @@ class $modify(FlyPlayLayer, PlayLayer) {
         g_holding = false;
         g_time = 0.0;
         g_lastAsk = -1.0;
+        g_inFlight = false;
         tryConnect(this);
         applySpeed(true);
         return true;
@@ -244,6 +272,7 @@ class $modify(FlyPlayLayer, PlayLayer) {
         g_holding = false;
         g_time = 0.0;
         g_lastAsk = -1.0;
+        g_inFlight = false;
         if (!g_link.connected()) { tryConnect(this); applySpeed(true); }
         g_link.send("R\n");
     }
@@ -265,8 +294,26 @@ class $modify(FlyGameLayer, GJBaseGameLayer) {
             if (p && !p->m_isDead) {
                 g_time += dt;
             }
+            if (g_async) {
+                // never wait: pick up an answer if one has arrived, and ask again when the last one is done
+                std::string reply;
+                while (g_link.pollLine(reply)) {
+                    g_inFlight = false;
+                    bool hold = !reply.empty() && reply[0] == '1';
+                    if (hold != g_holding) { this->handleButton(hold, 1, true); g_holding = hold; }
+                }
+                double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                if (g_inFlight && now - g_askedAt > 5.0) { log::warn("Fly brain: no answer for 5 s"); g_link.disconnect(); }
+                if (p && !p->m_isDead && g_link.connected() && !g_inFlight) {
+                    auto pos = p->getPosition();
+                    g_link.send(fmt::format("S {:.4f} {:.4f} {:.4f} {:.4f} {} {} {} {} {:.4f}\n", g_time, pos.x, pos.y,
+                        p->m_yVelocity, playerMode(p), p->m_vehicleSize < 0.9f ? 1 : 0, p->m_isOnGround ? 1 : 0,
+                        p->m_isUpsideDown ? 1 : 0, p->m_playerSpeed));
+                    g_inFlight = true; g_askedAt = now;
+                }
+            }
             // the brain decides 60 times per game-second; in between, keep the last decision
-            if (p && !p->m_isDead && (g_lastAsk < 0 || g_time - g_lastAsk >= 1.0 / 60.0 - 1e-6)) {
+            else if (p && !p->m_isDead && (g_lastAsk < 0 || g_time - g_lastAsk >= 1.0 / 60.0 - 1e-6)) {
                 g_lastAsk = g_time;
                 auto pos = p->getPosition();
                 std::ostringstream ss;
